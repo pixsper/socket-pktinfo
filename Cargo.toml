@@ -1,0 +1,23 @@
+[package]
+name = "socket-pktinfo"
+version = "0.1.0"
+authors = ["pixsperdavid <david@pixsper.com>"]
+edition = "2018"
+rust-version = "1.61.0"
+license = "MIT"
+repository = "https://github.com/pixsper/socket-pktinfo"
+documentation = "https://docs.rs/socket-pktinfo"
+keywords = ["sockets", "udp", "ip_pktinfo", "multicast"]
+categories = ["network-programming"]
+description = "Small library to allow cross-platform usage of IP_PKTINFO with socket2 crate"
+
+[dependencies.socket2]
+version = '0.4'
+features = ['all']
+
+[target.'cfg(windows)'.dependencies.winapi]
+version = '0.3.9'
+features = ['mswsock']
+
+[target.'cfg(not(windows))'.dependencies.libc]
+version = '0.2.85'

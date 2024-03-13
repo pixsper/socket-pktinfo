@@ -1,3 +1,32 @@
+//! Small library to allow cross-platform handling of IP_PKTINFO and IPV6_PKTINFO with socket2 crate.
+//!
+//! Primary use case for this crate is to determine if a UDP packet was sent to a unicast, broadcast or multicast IP address.
+//!
+//! Library implements a cross-platform wrapper [`crate::PktInfoUdpSocket`] around [`socket2::Socket`] which returns data extracted from
+//! the IP_PKTINFO and IPV6_PKTINFO control messages. Compatible with Windows, Linux and macOS.
+//!
+//! # Examples
+//!
+//! ```
+//! use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+//! use socket2::{Domain, SockAddr};
+//! use socket_pktinfo::PktInfoUdpSocket;
+//!
+//! let mut buf = [0; 1024];//!
+//! let mut socket = PktInfoUdpSocket::new(Domain::IPV4)?;
+//! socket.bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8000).into())?;
+//!
+//! match socket.recv(&mut buf) {//!
+//!     Ok((bytes_received, info)) => {
+//!         println!("{} bytes received on interface index {} from src {} with destination ip {} ",
+//!          bytes_received, info.if_index, info.addr_src, info.addr_dst);
+//!     }
+//!     Err(e) => {
+//!         eprintln!("Error receiving packet - {}", e);
+//!     }
+//! }
+//! ```
+
 #[cfg(windows)]
 mod win;
 #[cfg(windows)]
@@ -8,14 +37,13 @@ mod unix;
 #[cfg(not(windows))]
 pub use unix::*;
 
-/// Information about an incoming packet
 ///
 #[derive(Debug, Clone)]
 pub struct PktInfo {
     /// Interface index
     pub if_index: u64,
-    /// Local address
-    pub spec_dst: std::net::IpAddr,
+    /// Source address
+    pub addr_src: std::net::SocketAddr,
     /// Header destination address
-    pub addr: std::net::IpAddr,
+    pub addr_dst: std::net::IpAddr,
 }

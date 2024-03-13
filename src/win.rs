@@ -133,26 +133,8 @@ impl PktInfoUdpSocket {
         self.socket.set_multicast_if_v4(interface)
     }
 
-    pub fn set_multicast_loopback(&mut self, is_enabled: bool) -> io::Result<()> {
-        match self.domain {
-            Domain::IPV4 => unsafe {
-                setsockopt(
-                    self.socket.as_raw_socket(),
-                    IPPROTO_IP,
-                    IP_MULTICAST_LOOP as c_int,
-                    is_enabled as c_int,
-                )
-            },
-            Domain::IPV6 => unsafe {
-                setsockopt(
-                    self.socket.as_raw_socket(),
-                    IPPROTO_IPV6 as c_int,
-                    IPV6_MULTICAST_LOOP as c_int,
-                    is_enabled as c_int,
-                )
-            },
-            _ => unreachable!(),
-        }
+    pub fn set_multicast_loop_v4(&mut self, loop_v4: bool) -> io::Result<()> {
+        self.socket.set_multicast_loop_v4(loop_v4)
     }
 
     pub fn join_multicast_v6(&mut self, addr: &Ipv6Addr, interface: u32) -> io::Result<()> {
@@ -161,6 +143,10 @@ impl PktInfoUdpSocket {
 
     pub fn set_multicast_if_v6(&mut self, interface: u32) -> io::Result<()> {
         self.socket.set_multicast_if_v6(interface)
+    }
+
+    pub fn set_multicast_loop_v6(&mut self, loop_v6: bool) -> io::Result<()> {
+        self.socket.set_multicast_loop_v6(loop_v6)
     }
 
     pub fn set_nonblocking(&mut self, reuse: bool) -> io::Result<()> {
@@ -214,10 +200,9 @@ impl PktInfoUdpSocket {
             return Err(io::Error::last_os_error());
         }
 
-        let addr = unsafe { SockAddr::new(addr, mem::size_of_val(&addr) as i32) }
+        let addr_src = unsafe { SockAddr::new(addr, mem::size_of_val(&addr) as i32) }
             .as_socket()
-            .unwrap()
-            .ip();
+            .unwrap();
 
         let mut info: Option<PktInfo> = None;
 
@@ -227,18 +212,18 @@ impl PktInfoUdpSocket {
                 let interface_info: IN_PKTINFO =
                     unsafe { ptr::read_unaligned(control.buf.add(CMSG_HEADER_SIZE) as *const _) };
 
-                let spec_dst_bytes = unsafe { interface_info.ipi_addr.S_un.S_un_b() };
-                let spec_dst = Ipv4Addr::from([
-                    spec_dst_bytes.s_b1,
-                    spec_dst_bytes.s_b2,
-                    spec_dst_bytes.s_b3,
-                    spec_dst_bytes.s_b4,
-                ]);
+                let addr_dst_bytes = unsafe { interface_info.ipi_addr.S_un.S_un_b() };
+                let addr_dst = IpAddr::V4(Ipv4Addr::from([
+                    addr_dst_bytes.s_b1,
+                    addr_dst_bytes.s_b2,
+                    addr_dst_bytes.s_b3,
+                    addr_dst_bytes.s_b4,
+                ]));
 
                 info = Some(PktInfo {
                     if_index: interface_info.ipi_ifindex as u64,
-                    spec_dst: IpAddr::V4(spec_dst),
-                    addr,
+                    addr_src,
+                    addr_dst,
                 })
             }
         } else if control.len as usize == CONTROL_PKTINFOV6_BUFFER_SIZE {
@@ -249,18 +234,18 @@ impl PktInfoUdpSocket {
                 let interface_info: IN6_PKTINFO =
                     unsafe { ptr::read_unaligned(control.buf.add(CMSG_HEADER_SIZE) as *const _) };
 
-                let spec_dst_bytes = unsafe { interface_info.ipi6_addr.u.Byte() };
-                let spec_dst = Ipv6Addr::from(spec_dst_bytes.clone());
+                let addr_dst_bytes = unsafe { interface_info.ipi6_addr.u.Byte() };
+                let addr_dst = IpAddr::V6(Ipv6Addr::from(addr_dst_bytes.clone()));
                 info = Some(PktInfo {
                     if_index: interface_info.ipi6_ifindex as u64,
-                    spec_dst: IpAddr::V6(spec_dst),
-                    addr,
+                    addr_src,
+                    addr_dst,
                 })
             }
         }
 
         match info {
-            None => Err(io::Error::new(
+            None => Err(Error::new(
                 ErrorKind::NotFound,
                 "Failed to read PKTINFO from socket",
             )),

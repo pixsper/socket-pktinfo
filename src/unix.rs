@@ -1,3 +1,184 @@
-pub fn set_pktinfo(socket: RawSocket, payload: bool) -> io::Result<()> {
-    unsafe { setsockopt(socket, IPPROTO_IP, IP_PKTINFO, payload as c_int) }
+use crate::PktInfo;
+use libc::{c_int, c_void, iovec, msghdr, socklen_t, CMSG_FIRSTHDR, CMSG_SPACE};
+use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+use std::io::{Error, ErrorKind, IoSliceMut};
+use std::mem::MaybeUninit;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::os::fd::AsRawFd;
+use std::{io, mem, ptr};
+
+unsafe fn setsockopt<T>(socket: c_int, level: c_int, name: c_int, value: T) -> io::Result<()>
+where
+    T: Copy,
+{
+    let value = &value as *const T as *const c_void;
+    if libc::setsockopt(socket, level, name, value, mem::size_of::<T>() as socklen_t) == 0 {
+        Ok(())
+    } else {
+        Err(Error::last_os_error())
+    }
+}
+
+//
+pub struct PktInfoUdpSocket {
+    socket: Socket,
+    domain: Domain,
+}
+
+impl PktInfoUdpSocket {
+    pub fn new(domain: Domain) -> io::Result<PktInfoUdpSocket> {
+        let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
+
+        match domain {
+            Domain::IPV4 => unsafe {
+                setsockopt(
+                    socket.as_raw_fd(),
+                    libc::IPPROTO_IP,
+                    libc::IP_PKTINFO,
+                    1 as c_int,
+                )?;
+            },
+            Domain::IPV6 => unsafe {
+                setsockopt(
+                    socket.as_raw_fd(),
+                    libc::IPPROTO_IPV6,
+                    libc::IPV6_RECVPKTINFO,
+                    1 as c_int,
+                )?;
+            },
+            _ => return Err(Error::from(ErrorKind::Unsupported)),
+        }
+
+        Ok(PktInfoUdpSocket { socket, domain })
+    }
+
+    pub fn domain(&self) -> Domain {
+        self.domain
+    }
+    pub fn set_reuse_address(&mut self, reuse: bool) -> io::Result<()> {
+        self.socket.set_reuse_address(reuse)
+    }
+
+    pub fn set_reuse_port(&mut self, reuse: bool) -> io::Result<()> {
+        self.socket.set_reuse_port(reuse)
+    }
+
+    pub fn join_multicast_v4(&mut self, addr: &Ipv4Addr, interface: &Ipv4Addr) -> io::Result<()> {
+        self.socket.join_multicast_v4(addr, interface)
+    }
+
+    pub fn set_multicast_if_v4(&mut self, interface: &Ipv4Addr) -> io::Result<()> {
+        self.socket.set_multicast_if_v4(interface)
+    }
+
+    pub fn set_multicast_loop_v4(&mut self, loop_v4: bool) -> io::Result<()> {
+        self.socket.set_multicast_loop_v4(loop_v4)
+    }
+
+    pub fn join_multicast_v6(&mut self, addr: &Ipv6Addr, interface: u32) -> io::Result<()> {
+        self.socket.join_multicast_v6(addr, interface)
+    }
+
+    pub fn set_multicast_if_v6(&mut self, interface: u32) -> io::Result<()> {
+        self.socket.set_multicast_if_v6(interface)
+    }
+
+    pub fn set_multicast_loop_v6(&mut self, loop_v6: bool) -> io::Result<()> {
+        self.socket.set_multicast_loop_v6(loop_v6)
+    }
+
+    pub fn set_nonblocking(&mut self, reuse: bool) -> io::Result<()> {
+        self.socket.set_nonblocking(reuse)
+    }
+
+    pub fn bind(&mut self, addr: &SockAddr) -> io::Result<()> {
+        self.socket.bind(addr)
+    }
+
+    pub fn recv(&mut self, buf: &mut [u8]) -> io::Result<(usize, PktInfo)> {
+        let mut addr_src: MaybeUninit<libc::sockaddr_storage> = MaybeUninit::uninit();
+        let mut msg_iov = IoSliceMut::new(buf);
+        let mut cmsg = {
+            let space =
+                unsafe { CMSG_SPACE(mem::size_of::<libc::in_pktinfo>() as libc::c_uint) as usize };
+            Vec::<u8>::with_capacity(space)
+        };
+
+        let mut mhdr = unsafe {
+            let mut mhdr = MaybeUninit::<msghdr>::zeroed();
+            let p = mhdr.as_mut_ptr();
+            (*p).msg_name = addr_src.as_mut_ptr() as *mut c_void;
+            (*p).msg_namelen = mem::size_of::<libc::sockaddr_storage>() as socklen_t;
+            (*p).msg_iov = &mut msg_iov as *mut IoSliceMut as *mut iovec;
+            (*p).msg_iovlen = 1;
+            (*p).msg_control = cmsg.as_mut_ptr() as *mut c_void;
+            (*p).msg_controllen = cmsg.capacity() as _;
+            (*p).msg_flags = 0;
+            mhdr.assume_init()
+        };
+
+        let bytes_recv =
+            unsafe { libc::recvmsg(self.socket.as_raw_fd(), &mut mhdr as *mut msghdr, 0) };
+        if bytes_recv <= 0 {
+            return Err(Error::last_os_error());
+        }
+
+        let addr_src = unsafe {
+            SockAddr::new(
+                addr_src.assume_init(),
+                mem::size_of::<libc::sockaddr_storage>() as _,
+            )
+        }
+        .as_socket()
+        .unwrap();
+
+        let mut header = if mhdr.msg_controllen > 0 {
+            debug_assert!(!mhdr.msg_control.is_null());
+            debug_assert!(cmsg.capacity() >= mhdr.msg_controllen as usize);
+
+            Some(unsafe { CMSG_FIRSTHDR(&mhdr as *const msghdr).as_ref().unwrap() })
+        } else {
+            None
+        };
+
+        let mut info: Option<PktInfo> = None;
+        while info.is_none() && header.is_some() {
+            let h = header.unwrap();
+            let p = unsafe { libc::CMSG_DATA(h) };
+
+            match (h.cmsg_level, h.cmsg_type) {
+                (libc::IPPROTO_IP, libc::IP_PKTINFO) => {
+                    let pktinfo = unsafe { ptr::read_unaligned(p as *const libc::in_pktinfo) };
+                    info = Some(PktInfo {
+                        if_index: pktinfo.ipi_ifindex as _,
+                        addr_src,
+                        addr_dst: IpAddr::V4(Ipv4Addr::from(u32::from_be(pktinfo.ipi_addr.s_addr))),
+                    })
+                }
+                (libc::IPPROTO_IPV6, libc::IPV6_PKTINFO) => {
+                    let pktinfo = unsafe { ptr::read_unaligned(p as *const libc::in6_pktinfo) };
+
+                    info = Some(PktInfo {
+                        if_index: pktinfo.ipi6_ifindex as _,
+                        addr_src,
+                        addr_dst: IpAddr::V6(Ipv6Addr::from(pktinfo.ipi6_addr.s6_addr)),
+                    })
+                }
+                _ => {
+                    header = unsafe {
+                        let p = libc::CMSG_NXTHDR(&mhdr as *const _, h as *const _);
+                        p.as_ref()
+                    };
+                }
+            }
+        }
+
+        match info {
+            None => Err(Error::new(
+                ErrorKind::NotFound,
+                "Failed to read PKTINFO from socket",
+            )),
+            Some(info) => Ok((bytes_recv as _, info)),
+        }
+    }
 }

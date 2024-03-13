@@ -1,46 +1,70 @@
+use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use socket_pktinfo::PktInfoUdpSocket;
 use std::io;
-use std::net::{IpAddr, Ipv6Addr, SocketAddr};
+use std::net::{Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 
 #[test]
-fn test_ipv6() -> io::Result<()> {
+fn ipv6_test() -> io::Result<()> {
+    let mut interfaces = NetworkInterface::show().unwrap();
+    interfaces.sort_by(|a, b| a.index.cmp(&b.index));
+
+    let interface = interfaces
+        .into_iter()
+        .find(|n| {
+            !n.addr.iter().any(|a| a.ip().is_loopback()) && n.addr.iter().any(|a| a.ip().is_ipv6())
+        })
+        .expect("Can't run test without any IPv6 network interfaces");
+
+    let local_ip = interface
+        .addr
+        .iter()
+        .find(|a| a.ip().is_ipv6())
+        .unwrap()
+        .ip();
+
+    println!(
+        "Testing using network interface index {}, ip {}",
+        interface.index, local_ip
+    );
+
     let port = 8000;
-    let multicast_addr = Ipv6Addr::from_str("ff1e::1").unwrap();
-    let unicast_socket_addr: SockAddr =
-        SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), port).into();
+    let multicast_addr = Ipv6Addr::from_str("ff12::1").unwrap();
+    let local_addr: SockAddr = SocketAddr::new(local_ip, port).into();
     let multicast_socket_addr: SockAddr = SocketAddr::new(multicast_addr.into(), port).into();
 
     let mut buf = [0; 8972];
     let mut socket = PktInfoUdpSocket::new(Domain::IPV6)?;
     socket.set_reuse_address(true)?;
-    socket.join_multicast_v6(&multicast_addr, 1)?;
-    socket.set_multicast_loopback(true)?;
-    socket.bind(&unicast_socket_addr)?;
+    socket.join_multicast_v6(&multicast_addr, 0)?;
+    socket.set_multicast_loop_v6(true)?;
+    socket.bind(&local_addr)?;
 
     {
         let output_socket = Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))?;
         let data = "Hello";
-        output_socket.send_to(data.as_bytes(), &unicast_socket_addr)?;
+        output_socket.send_to(data.as_bytes(), &local_addr)?;
     }
 
     let (_, info) = socket.recv(&mut buf)?;
     println!(
-        "Unicast packet received on interface {} from {} with src {}",
-        info.if_index, info.addr, info.spec_dst
+        "Unicast packet received on interface index {} from {} with src {}",
+        info.if_index, info.addr_dst, info.addr_src
     );
 
     {
         let output_socket = Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))?;
+        output_socket.set_multicast_if_v6(interface.index)?;
+        output_socket.set_multicast_loop_v6(true)?;
         let data = "Hello";
         output_socket.send_to(data.as_bytes(), &multicast_socket_addr)?;
     }
 
     let (_, info) = socket.recv(&mut buf)?;
     println!(
-        "Multicast packet received on interface {} from {} with src {}",
-        info.if_index, info.addr, info.spec_dst
+        "Multicast packet received on interface index {} from {} with src {}",
+        info.if_index, info.addr_dst, info.addr_src
     );
 
     Ok(())

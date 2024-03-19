@@ -235,7 +235,7 @@ impl PktInfoUdpSocket {
                     unsafe { ptr::read_unaligned(control.buf.add(CMSG_HEADER_SIZE) as *const _) };
 
                 let addr_dst_bytes = unsafe { interface_info.ipi6_addr.u.Byte() };
-                let addr_dst = IpAddr::V6(Ipv6Addr::from(addr_dst_bytes.clone()));
+                let addr_dst = IpAddr::V6(Ipv6Addr::from(*addr_dst_bytes));
                 info = Some(PktInfo {
                     if_index: interface_info.ipi6_ifindex as u64,
                     addr_src,

@@ -1,18 +1,31 @@
-use crate::PktInfo;
-use libc::{c_int, c_void, iovec, msghdr, socklen_t, CMSG_FIRSTHDR, CMSG_SPACE};
-use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::io::{Error, ErrorKind, IoSliceMut};
 use std::mem::MaybeUninit;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::os::fd::AsRawFd;
+use std::os::unix::io::AsRawFd;
 use std::{io, mem, ptr};
 
-unsafe fn setsockopt<T>(socket: c_int, level: c_int, name: c_int, value: T) -> io::Result<()>
+use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+
+use crate::PktInfo;
+
+unsafe fn setsockopt<T>(
+    socket: libc::c_int,
+    level: libc::c_int,
+    name: libc::c_int,
+    value: T,
+) -> io::Result<()>
 where
     T: Copy,
 {
-    let value = &value as *const T as *const c_void;
-    if libc::setsockopt(socket, level, name, value, mem::size_of::<T>() as socklen_t) == 0 {
+    let value = &value as *const T as *const libc::c_void;
+    if libc::setsockopt(
+        socket,
+        level,
+        name,
+        value,
+        mem::size_of::<T>() as libc::socklen_t,
+    ) == 0
+    {
         Ok(())
     } else {
         Err(Error::last_os_error())
@@ -31,19 +44,14 @@ impl PktInfoUdpSocket {
 
         match domain {
             Domain::IPV4 => unsafe {
-                setsockopt(
-                    socket.as_raw_fd(),
-                    libc::IPPROTO_IP,
-                    libc::IP_PKTINFO,
-                    1 as c_int,
-                )?;
+                setsockopt(socket.as_raw_fd(), libc::IPPROTO_IP, libc::IP_PKTINFO, 1)?;
             },
             Domain::IPV6 => unsafe {
                 setsockopt(
                     socket.as_raw_fd(),
                     libc::IPPROTO_IPV6,
                     libc::IPV6_RECVPKTINFO,
-                    1 as c_int,
+                    1,
                 )?;
             },
             _ => return Err(Error::from(ErrorKind::Unsupported)),
@@ -99,26 +107,27 @@ impl PktInfoUdpSocket {
         let mut addr_src: MaybeUninit<libc::sockaddr_storage> = MaybeUninit::uninit();
         let mut msg_iov = IoSliceMut::new(buf);
         let mut cmsg = {
-            let space =
-                unsafe { CMSG_SPACE(mem::size_of::<libc::in_pktinfo>() as libc::c_uint) as usize };
+            let space = unsafe {
+                libc::CMSG_SPACE(mem::size_of::<libc::in_pktinfo>() as libc::c_uint) as usize
+            };
             Vec::<u8>::with_capacity(space)
         };
 
         let mut mhdr = unsafe {
-            let mut mhdr = MaybeUninit::<msghdr>::zeroed();
+            let mut mhdr = MaybeUninit::<libc::msghdr>::zeroed();
             let p = mhdr.as_mut_ptr();
-            (*p).msg_name = addr_src.as_mut_ptr() as *mut c_void;
-            (*p).msg_namelen = mem::size_of::<libc::sockaddr_storage>() as socklen_t;
-            (*p).msg_iov = &mut msg_iov as *mut IoSliceMut as *mut iovec;
+            (*p).msg_name = addr_src.as_mut_ptr() as *mut libc::c_void;
+            (*p).msg_namelen = mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
+            (*p).msg_iov = &mut msg_iov as *mut IoSliceMut as *mut libc::iovec;
             (*p).msg_iovlen = 1;
-            (*p).msg_control = cmsg.as_mut_ptr() as *mut c_void;
+            (*p).msg_control = cmsg.as_mut_ptr() as *mut libc::c_void;
             (*p).msg_controllen = cmsg.capacity() as _;
             (*p).msg_flags = 0;
             mhdr.assume_init()
         };
 
         let bytes_recv =
-            unsafe { libc::recvmsg(self.socket.as_raw_fd(), &mut mhdr as *mut msghdr, 0) };
+            unsafe { libc::recvmsg(self.socket.as_raw_fd(), &mut mhdr as *mut libc::msghdr, 0) };
         if bytes_recv <= 0 {
             return Err(Error::last_os_error());
         }
@@ -136,7 +145,11 @@ impl PktInfoUdpSocket {
             debug_assert!(!mhdr.msg_control.is_null());
             debug_assert!(cmsg.capacity() >= mhdr.msg_controllen as usize);
 
-            Some(unsafe { CMSG_FIRSTHDR(&mhdr as *const msghdr).as_ref().unwrap() })
+            Some(unsafe {
+                libc::CMSG_FIRSTHDR(&mhdr as *const libc::msghdr)
+                    .as_ref()
+                    .unwrap()
+            })
         } else {
             None
         };

@@ -8,13 +8,15 @@
 //! # Examples
 //!
 //! ```
-//! use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+//! use std::net::{Ipv4Addr, SocketAddrV4};
 //! use socket2::{Domain, SockAddr};
 //! use socket_pktinfo::PktInfoUdpSocket;
 //!
-//! let mut buf = [0; 1024];//!
+//! # fn main() -> std::io::Result<()> {
+//!
+//! let mut buf = [0; 1024];
 //! let mut socket = PktInfoUdpSocket::new(Domain::IPV4)?;
-//! socket.bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8000).into())?;
+//! socket.bind(&SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 8000).into())?;
 //!
 //! match socket.recv(&mut buf) {//!
 //!     Ok((bytes_received, info)) => {
@@ -25,6 +27,8 @@
 //!         eprintln!("Error receiving packet - {}", e);
 //!     }
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 #[cfg(windows)]

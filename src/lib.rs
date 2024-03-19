@@ -20,7 +20,7 @@
 //!
 //! match socket.recv(&mut buf) {//!
 //!     Ok((bytes_received, info)) => {
-//!         println!("{} bytes received on interface index {} from src {} with destination ip {} ",
+//!         println!("{} bytes received on interface index {} from src {} with destination ip {}",
 //!          bytes_received, info.if_index, info.addr_src, info.addr_dst);
 //!     }
 //!     Err(e) => {

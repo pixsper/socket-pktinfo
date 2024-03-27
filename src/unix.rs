@@ -1,7 +1,8 @@
+use std::fmt::{Debug, Formatter};
 use std::io::{Error, ErrorKind, IoSliceMut};
 use std::mem::MaybeUninit;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::os::unix::io::AsRawFd;
+use std::os::fd::{AsRawFd, RawFd};
 use std::{io, mem, ptr};
 
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
@@ -38,6 +39,18 @@ pub struct PktInfoUdpSocket {
     domain: Domain,
 }
 
+impl Debug for PktInfoUdpSocket {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.socket.fmt(f)
+    }
+}
+
+impl AsRawFd for PktInfoUdpSocket {
+    fn as_raw_fd(&self) -> RawFd {
+        self.socket.as_raw_fd()
+    }
+}
+
 impl PktInfoUdpSocket {
     pub fn new(domain: Domain) -> io::Result<PktInfoUdpSocket> {
         let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
@@ -63,44 +76,52 @@ impl PktInfoUdpSocket {
     pub fn domain(&self) -> Domain {
         self.domain
     }
-    pub fn set_reuse_address(&mut self, reuse: bool) -> io::Result<()> {
+    pub fn set_reuse_address(&self, reuse: bool) -> io::Result<()> {
         self.socket.set_reuse_address(reuse)
     }
 
-    pub fn set_reuse_port(&mut self, reuse: bool) -> io::Result<()> {
+    pub fn set_reuse_port(&self, reuse: bool) -> io::Result<()> {
         self.socket.set_reuse_port(reuse)
     }
 
-    pub fn join_multicast_v4(&mut self, addr: &Ipv4Addr, interface: &Ipv4Addr) -> io::Result<()> {
+    pub fn join_multicast_v4(&self, addr: &Ipv4Addr, interface: &Ipv4Addr) -> io::Result<()> {
         self.socket.join_multicast_v4(addr, interface)
     }
 
-    pub fn set_multicast_if_v4(&mut self, interface: &Ipv4Addr) -> io::Result<()> {
+    pub fn set_multicast_if_v4(&self, interface: &Ipv4Addr) -> io::Result<()> {
         self.socket.set_multicast_if_v4(interface)
     }
 
-    pub fn set_multicast_loop_v4(&mut self, loop_v4: bool) -> io::Result<()> {
+    pub fn set_multicast_loop_v4(&self, loop_v4: bool) -> io::Result<()> {
         self.socket.set_multicast_loop_v4(loop_v4)
     }
 
-    pub fn join_multicast_v6(&mut self, addr: &Ipv6Addr, interface: u32) -> io::Result<()> {
+    pub fn join_multicast_v6(&self, addr: &Ipv6Addr, interface: u32) -> io::Result<()> {
         self.socket.join_multicast_v6(addr, interface)
     }
 
-    pub fn set_multicast_if_v6(&mut self, interface: u32) -> io::Result<()> {
+    pub fn set_multicast_if_v6(&self, interface: u32) -> io::Result<()> {
         self.socket.set_multicast_if_v6(interface)
     }
 
-    pub fn set_multicast_loop_v6(&mut self, loop_v6: bool) -> io::Result<()> {
+    pub fn set_multicast_loop_v6(&self, loop_v6: bool) -> io::Result<()> {
         self.socket.set_multicast_loop_v6(loop_v6)
     }
 
-    pub fn set_nonblocking(&mut self, reuse: bool) -> io::Result<()> {
+    pub fn set_nonblocking(&self, reuse: bool) -> io::Result<()> {
         self.socket.set_nonblocking(reuse)
     }
 
-    pub fn bind(&mut self, addr: &SockAddr) -> io::Result<()> {
+    pub fn bind(&self, addr: &SockAddr) -> io::Result<()> {
         self.socket.bind(addr)
+    }
+
+    pub fn send(&self, buf: &[u8]) -> io::Result<usize> {
+        self.socket.send(buf)
+    }
+
+    pub fn send_to(&self, buf: &[u8], addr: &SockAddr) -> io::Result<usize> {
+        self.socket.send_to(buf, addr)
     }
 
     pub fn recv(&mut self, buf: &mut [u8]) -> io::Result<(usize, PktInfo)> {

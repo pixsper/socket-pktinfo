@@ -50,7 +50,7 @@ fn ipv6_test() -> io::Result<()> {
     let (_, info) = socket.recv(&mut buf)?;
     println!(
         "Unicast packet received on interface index {} from src {} with destination ip {}",
-        info.if_index, info.addr_dst, info.addr_src
+        info.if_index, info.addr_src, info.addr_dst
     );
 
     {
@@ -64,7 +64,7 @@ fn ipv6_test() -> io::Result<()> {
     let (_, info) = socket.recv(&mut buf)?;
     println!(
         "Multicast packet received on interface index {} from src {} with destination ip {}",
-        info.if_index, info.addr_dst, info.addr_src
+        info.if_index, info.addr_src, info.addr_dst,
     );
 
     Ok(())

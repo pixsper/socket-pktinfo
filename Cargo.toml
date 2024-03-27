@@ -3,7 +3,7 @@ name = "socket-pktinfo"
 version = "0.1.0"
 authors = ["pixsperdavid <david@pixsper.com>"]
 edition = "2018"
-rust-version = "1.61.0"
+rust-version = "1.63.0"
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/pixsper/socket-pktinfo"
@@ -14,12 +14,16 @@ categories = ["network-programming"]
 description = "Small library to allow cross-platform handling of IP_PKTINFO and IPV6_PKTINFO with socket2 crate"
 
 [dependencies.socket2]
-version = '0.4'
+version = '0.5.5'
 features = ['all']
 
-[target.'cfg(windows)'.dependencies.winapi]
-version = '0.3.9'
-features = ['mswsock']
+[target.'cfg(windows)'.dependencies.windows-sys]
+version = "0.48"
+features = [
+    "Win32_Foundation",
+    "Win32_Networking_WinSock",
+    "Win32_System_IO"
+]
 
 [target.'cfg(not(windows))'.dependencies.libc]
 version = '0.2.153'

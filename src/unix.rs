@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::io::{Error, ErrorKind, IoSliceMut};
 use std::mem::MaybeUninit;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::os::fd::{AsRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::{io, mem, ptr};
 
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};

@@ -35,7 +35,7 @@ fn ipv6_test() -> io::Result<()> {
     let multicast_socket_addr: SockAddr = SocketAddr::new(multicast_addr.into(), port).into();
 
     let mut buf = [0; 8972];
-    let mut socket = PktInfoUdpSocket::new(Domain::IPV6)?;
+    let socket = PktInfoUdpSocket::new(Domain::IPV6)?;
     socket.set_reuse_address(true)?;
     socket.join_multicast_v6(&multicast_addr, 0)?;
     socket.set_multicast_loop_v6(true)?;

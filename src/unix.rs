@@ -124,7 +124,7 @@ impl PktInfoUdpSocket {
         self.socket.send_to(buf, addr)
     }
 
-    pub fn recv(&mut self, buf: &mut [u8]) -> io::Result<(usize, PktInfo)> {
+    pub fn recv(&self, buf: &mut [u8]) -> io::Result<(usize, PktInfo)> {
         let mut addr_src: MaybeUninit<libc::sockaddr_storage> = MaybeUninit::uninit();
         let mut msg_iov = IoSliceMut::new(buf);
         let mut cmsg = {

@@ -160,7 +160,7 @@ impl PktInfoUdpSocket {
         self.socket.set_nonblocking(reuse)
     }
 
-    pub fn bind(&mut self, addr: &SockAddr) -> io::Result<()> {
+    pub fn bind(&self, addr: &SockAddr) -> io::Result<()> {
         self.socket.bind(addr)
     }
 
@@ -172,7 +172,7 @@ impl PktInfoUdpSocket {
         self.socket.send_to(buf, addr)
     }
 
-    pub fn recv(&mut self, buf: &mut [u8]) -> io::Result<(usize, PktInfo)> {
+    pub fn recv(&self, buf: &mut [u8]) -> io::Result<(usize, PktInfo)> {
         let mut data = WSABUF {
             buf: buf.as_mut_ptr() as PSTR,
             len: buf.len() as u32,

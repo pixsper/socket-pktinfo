@@ -39,7 +39,7 @@ fn ipv4_test() -> io::Result<()> {
     let multicast_socket_addr: SockAddr = SocketAddr::new(multicast_addr.into(), port).into();
 
     let mut buf = [0; 1024];
-    let mut socket = PktInfoUdpSocket::new(Domain::IPV4)?;
+    let socket = PktInfoUdpSocket::new(Domain::IPV4)?;
     socket.set_reuse_address(true)?;
     socket.set_multicast_if_v4(&local_ip)?;
     socket.join_multicast_v4(&multicast_addr, &local_ip)?;

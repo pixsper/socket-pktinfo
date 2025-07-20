@@ -44,6 +44,7 @@ fn ipv4_test() -> io::Result<()> {
     socket.set_multicast_if_v4(&local_ip)?;
     socket.join_multicast_v4(&multicast_addr, &local_ip)?;
     socket.set_multicast_loop_v4(true)?;
+    socket.set_multicast_ttl_v4(255)?;
     socket.bind(&SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port).into())?;
 
     {

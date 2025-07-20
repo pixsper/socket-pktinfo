@@ -96,6 +96,10 @@ impl PktInfoUdpSocket {
         self.socket.set_multicast_loop_v4(loop_v4)
     }
 
+    pub fn set_multicast_ttl_v4(&self, ttl: u32) -> io::Result<()> {
+        self.socket.set_multicast_ttl_v4(ttl)
+    }
+
     pub fn join_multicast_v6(&self, addr: &Ipv6Addr, interface: u32) -> io::Result<()> {
         self.socket.join_multicast_v6(addr, interface)
     }
@@ -106,6 +110,10 @@ impl PktInfoUdpSocket {
 
     pub fn set_multicast_loop_v6(&self, loop_v6: bool) -> io::Result<()> {
         self.socket.set_multicast_loop_v6(loop_v6)
+    }
+
+    pub fn set_multicast_hops_v6(&self, hops: u32) -> io::Result<()> {
+        self.socket.set_multicast_hops_v6(hops)
     }
 
     pub fn set_nonblocking(&self, reuse: bool) -> io::Result<()> {

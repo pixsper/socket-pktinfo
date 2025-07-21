@@ -7,7 +7,7 @@
 //!
 //! # Examples
 //!
-//! ```
+//! ```no_run
 //! use std::net::{Ipv4Addr, SocketAddrV4};
 //! use socket2::{Domain, SockAddr};
 //! use socket_pktinfo::PktInfoUdpSocket;

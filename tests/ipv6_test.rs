@@ -2,7 +2,7 @@ use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use socket_pktinfo::PktInfoUdpSocket;
 use std::io;
-use std::net::{Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6};
 use std::str::FromStr;
 
 #[test]
@@ -31,14 +31,18 @@ fn ipv6_test() -> io::Result<()> {
 
     let port = 8000;
     let multicast_addr = Ipv6Addr::from_str("ff12::1").unwrap();
-    let local_addr: SockAddr = SocketAddr::new(local_ip, port).into();
+    let IpAddr::V6(local_ipv6) = local_ip else {
+        panic!("Expected IPv6");
+    };
+    let local_addr: SockAddr = SocketAddrV6::new(local_ipv6, port, 0, interface.index).into();
     let multicast_socket_addr: SockAddr = SocketAddr::new(multicast_addr.into(), port).into();
 
     let mut buf = [0; 8972];
     let socket = PktInfoUdpSocket::new(Domain::IPV6)?;
     socket.set_reuse_address(true)?;
-    socket.join_multicast_v6(&multicast_addr, 0)?;
+    socket.join_multicast_v6(&multicast_addr, interface.index)?;
     socket.set_multicast_loop_v6(true)?;
+    socket.set_multicast_hops_v6(255)?;
     socket.bind(&local_addr)?;
 
     {

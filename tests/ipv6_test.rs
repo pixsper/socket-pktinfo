@@ -2,7 +2,7 @@ use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use socket_pktinfo::PktInfoUdpSocket;
 use std::io;
-use std::net::{Ipv6Addr, SocketAddr, SocketAddrV6, IpAddr};
+use std::net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6};
 use std::str::FromStr;
 
 #[test]

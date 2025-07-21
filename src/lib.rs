@@ -31,6 +31,8 @@
 //! # }
 //! ```
 
+#![allow(clippy::unnecessary_cast)]
+
 #[cfg(windows)]
 mod win;
 #[cfg(windows)]

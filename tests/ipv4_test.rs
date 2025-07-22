@@ -47,6 +47,16 @@ fn ipv4_test() -> io::Result<()> {
     socket.set_multicast_ttl_v4(255)?;
     socket.bind(&SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port).into())?;
 
+    let std_udp_socket = socket.try_clone_std()?;
+    assert!(
+        std_udp_socket.local_addr()? == SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port)
+    );
+
+    {
+        let output_socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
+        let data = "Hello";
+        output_socket.send_to(data.as_bytes(), &local_addr)?;
+    }
     {
         let output_socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
         let data = "Hello";

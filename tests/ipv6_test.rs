@@ -45,6 +45,12 @@ fn ipv6_test() -> io::Result<()> {
     socket.set_multicast_hops_v6(255)?;
     socket.bind(&local_addr)?;
 
+    let std_udp_socket = socket.try_clone_std()?;
+    assert_eq!(
+        std_udp_socket.local_addr()?,
+        local_addr.as_socket().unwrap()
+    );
+
     {
         let output_socket = Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))?;
         let data = "Hello";

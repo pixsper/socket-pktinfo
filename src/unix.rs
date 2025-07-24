@@ -5,7 +5,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::{io, mem, ptr};
 
-use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+use socket2::{Domain, Protocol, SockAddr, SockAddrStorage, Socket, Type};
 
 use crate::PktInfo;
 
@@ -133,17 +133,11 @@ impl PktInfoUdpSocket {
     }
 
     pub fn recv(&self, buf: &mut [u8]) -> io::Result<(usize, PktInfo)> {
-        let mut addr_src: MaybeUninit<libc::sockaddr_storage> = MaybeUninit::uninit();
+        let mut addr_src = SockAddrStorage::zeroed();
         let mut msg_iov = IoSliceMut::new(buf);
         let mut cmsg = {
-            let space = if self.domain == Domain::IPV4 {
-                unsafe {
-                    libc::CMSG_SPACE(mem::size_of::<libc::in_pktinfo>() as libc::c_uint) as usize
-                }
-            } else {
-                unsafe {
-                    libc::CMSG_SPACE(mem::size_of::<libc::in6_pktinfo>() as libc::c_uint) as usize
-                }
+            let space = unsafe {
+                libc::CMSG_SPACE(mem::size_of::<libc::in_pktinfo>() as libc::c_uint) as usize
             };
             Vec::<u8>::with_capacity(space)
         };
@@ -151,7 +145,7 @@ impl PktInfoUdpSocket {
         let mut mhdr = unsafe {
             let mut mhdr = MaybeUninit::<libc::msghdr>::zeroed();
             let p = mhdr.as_mut_ptr();
-            (*p).msg_name = addr_src.as_mut_ptr() as *mut libc::c_void;
+            (*p).msg_name = addr_src.view_as::<libc::c_void>();
             (*p).msg_namelen = mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
             (*p).msg_iov = &mut msg_iov as *mut IoSliceMut as *mut libc::iovec;
             (*p).msg_iovlen = 1;
@@ -167,14 +161,8 @@ impl PktInfoUdpSocket {
             return Err(Error::last_os_error());
         }
 
-        let addr_src = unsafe {
-            SockAddr::new(
-                addr_src.assume_init(),
-                mem::size_of::<libc::sockaddr_storage>() as _,
-            )
-        }
-        .as_socket()
-        .unwrap();
+        let len = addr_src.size_of();
+        let addr_src = unsafe { SockAddr::new(addr_src, len) }.as_socket().unwrap();
 
         let mut header = if mhdr.msg_controllen > 0 {
             debug_assert!(!mhdr.msg_control.is_null());

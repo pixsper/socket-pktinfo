@@ -70,6 +70,7 @@ fn ipv6_test() -> io::Result<()> {
         "Multicast packet received on interface index {} from src {} with destination ip {}",
         info.if_index, info.addr_src, info.addr_dst,
     );
+    assert!(info.if_index != 0);
 
     Ok(())
 }

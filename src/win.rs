@@ -4,7 +4,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::os::windows::io::{AsRawSocket, RawSocket};
 use std::{io, mem, ptr};
 
-use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+use socket2::{Domain, Protocol, SockAddr, SockAddrStorage, Socket, Type};
 use windows_sys::core::{PCSTR, PSTR};
 use windows_sys::Win32::Networking::WinSock::{
     self, CMSGHDR, IN6_PKTINFO, IN_PKTINFO, IPPROTO_IP, IPPROTO_IPV6, IPV6_PKTINFO, IP_PKTINFO,
@@ -196,10 +196,10 @@ impl PktInfoUdpSocket {
             },
         };
 
-        let mut addr = unsafe { mem::zeroed() };
+        let mut addr = SockAddrStorage::zeroed();
         let mut wsa_msg = WSAMSG {
             name: &mut addr as *mut _ as *mut _,
-            namelen: mem::size_of_val(&addr) as i32,
+            namelen: addr.size_of(),
             lpBuffers: &mut data,
             Control: control,
             dwBufferCount: 1,
@@ -223,9 +223,8 @@ impl PktInfoUdpSocket {
             return Err(io::Error::last_os_error());
         }
 
-        let addr_src = unsafe { SockAddr::new(addr, mem::size_of_val(&addr) as i32) }
-            .as_socket()
-            .unwrap();
+        let len = addr.size_of();
+        let addr_src = unsafe { SockAddr::new(addr, len) }.as_socket().unwrap();
 
         let mut info: Option<PktInfo> = None;
 

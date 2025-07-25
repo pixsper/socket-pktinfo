@@ -14,7 +14,7 @@ categories = ["network-programming"]
 description = "Small library to allow cross-platform handling of IP_PKTINFO and IPV6_PKTINFO with socket2 crate"
 
 [dependencies.socket2]
-version = "0.5.8"
+version = "0.6.0"
 features = ["all"]
 
 [target.'cfg(windows)'.dependencies.windows-sys]

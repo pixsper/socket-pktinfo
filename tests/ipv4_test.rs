@@ -57,11 +57,6 @@ fn ipv4_test() -> io::Result<()> {
         let data = "Hello";
         output_socket.send_to(data.as_bytes(), &local_addr)?;
     }
-    {
-        let output_socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
-        let data = "Hello";
-        output_socket.send_to(data.as_bytes(), &local_addr)?;
-    }
 
     let (_, info) = socket.recv(&mut buf)?;
     println!(

@@ -136,6 +136,11 @@ impl PktInfoUdpSocket {
         self.socket.join_multicast_v4(addr, interface)
     }
 
+    /// Drop membership in a multicast group for IPv4.
+    pub fn leave_multicast_v4(&self, addr: &Ipv4Addr, interface: &Ipv4Addr) -> io::Result<()> {
+        self.socket.leave_multicast_v4(addr, interface)
+    }
+
     pub fn set_multicast_if_v4(&self, interface: &Ipv4Addr) -> io::Result<()> {
         self.socket.set_multicast_if_v4(interface)
     }
@@ -150,6 +155,11 @@ impl PktInfoUdpSocket {
 
     pub fn join_multicast_v6(&self, addr: &Ipv6Addr, interface: u32) -> io::Result<()> {
         self.socket.join_multicast_v6(addr, interface)
+    }
+
+    /// Drop membership in a multicast group for IPv6.
+    pub fn leave_multicast_v6(&self, addr: &Ipv6Addr, interface: u32) -> io::Result<()> {
+        self.socket.leave_multicast_v6(addr, interface)
     }
 
     pub fn set_multicast_if_v6(&self, interface: u32) -> io::Result<()> {
@@ -267,5 +277,12 @@ impl PktInfoUdpSocket {
             )),
             Some(info) => Ok((read_bytes as usize, info)),
         }
+    }
+
+    /// Creates a new independently owned std UdpSocket from this PktInfoUdpSocket.
+    ///
+    /// This is useful to mix and match functionality from this crate with stdlib or other crates.
+    pub fn try_clone_std(&self) -> io::Result<std::net::UdpSocket> {
+        Ok(self.socket.try_clone()?.into())
     }
 }

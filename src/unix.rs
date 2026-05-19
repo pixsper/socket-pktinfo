@@ -56,6 +56,17 @@ impl PktInfoUdpSocket {
         let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
 
         match domain {
+            #[cfg(target_os = "freebsd")]
+            Domain::IPV4 => unsafe {
+                setsockopt(
+                    socket.as_raw_fd(),
+                    libc::IPPROTO_IP,
+                    libc::IP_RECVDSTADDR,
+                    1,
+                )?;
+                setsockopt(socket.as_raw_fd(), libc::IPPROTO_IP, libc::IP_RECVIF, 1)?;
+            },
+            #[cfg(not(target_os = "freebsd"))]
             Domain::IPV4 => unsafe {
                 setsockopt(socket.as_raw_fd(), libc::IPPROTO_IP, libc::IP_PKTINFO, 1)?;
             },
@@ -147,6 +158,13 @@ impl PktInfoUdpSocket {
         let mut msg_iov = IoSliceMut::new(buf);
         let mut cmsg = {
             let space = if self.domain == Domain::IPV4 {
+                #[cfg(target_os = "freebsd")]
+                unsafe {
+                    libc::CMSG_SPACE(mem::size_of::<libc::in_addr>() as libc::c_uint) as usize
+                        + libc::CMSG_SPACE(mem::size_of::<libc::sockaddr_dl>() as libc::c_uint)
+                            as usize
+                }
+                #[cfg(not(target_os = "freebsd"))]
                 unsafe {
                     libc::CMSG_SPACE(mem::size_of::<libc::in_pktinfo>() as libc::c_uint) as usize
                 }
@@ -193,44 +211,61 @@ impl PktInfoUdpSocket {
             None
         };
 
-        let mut info: Option<PktInfo> = None;
-        while info.is_none() && header.is_some() {
-            let h = header.unwrap();
+        let (mut addr_dst, mut if_index) = (None, None);
+
+        while let Some(h) = header {
+            if addr_dst.is_some() && if_index.is_some() {
+                break;
+            }
+
             let p = unsafe { libc::CMSG_DATA(h) };
 
             match (h.cmsg_level, h.cmsg_type) {
+                #[cfg(not(target_os = "freebsd"))]
                 (libc::IPPROTO_IP, libc::IP_PKTINFO) => {
                     let pktinfo = unsafe { ptr::read_unaligned(p as *const libc::in_pktinfo) };
-                    info = Some(PktInfo {
-                        if_index: pktinfo.ipi_ifindex as _,
-                        addr_src,
-                        addr_dst: IpAddr::V4(Ipv4Addr::from(u32::from_be(pktinfo.ipi_addr.s_addr))),
-                    })
+                    if_index = Some(pktinfo.ipi_ifindex as u64);
+                    addr_dst = Some(IpAddr::V4(Ipv4Addr::from(u32::from_be(
+                        pktinfo.ipi_addr.s_addr,
+                    ))));
+                }
+                #[cfg(target_os = "freebsd")]
+                (libc::IPPROTO_IP, libc::IP_RECVDSTADDR) => {
+                    let in_addr = unsafe { ptr::read_unaligned(p as *const libc::in_addr) };
+                    addr_dst = Some(IpAddr::V4(Ipv4Addr::from(in_addr.s_addr.to_ne_bytes())));
+                }
+                #[cfg(target_os = "freebsd")]
+                (libc::IPPROTO_IP, libc::IP_RECVIF) => {
+                    let sockaddr = unsafe { ptr::read_unaligned(p as *const libc::sockaddr_dl) };
+                    if_index = Some(sockaddr.sdl_index as u64);
                 }
                 (libc::IPPROTO_IPV6, libc::IPV6_PKTINFO) => {
                     let pktinfo = unsafe { ptr::read_unaligned(p as *const libc::in6_pktinfo) };
-
-                    info = Some(PktInfo {
-                        if_index: pktinfo.ipi6_ifindex as _,
-                        addr_src,
-                        addr_dst: IpAddr::V6(Ipv6Addr::from(pktinfo.ipi6_addr.s6_addr)),
-                    })
+                    if_index = Some(pktinfo.ipi6_ifindex as u64);
+                    addr_dst = Some(IpAddr::V6(Ipv6Addr::from(pktinfo.ipi6_addr.s6_addr)));
                 }
-                _ => {
-                    header = unsafe {
-                        let p = libc::CMSG_NXTHDR(&mhdr as *const _, h as *const _);
-                        p.as_ref()
-                    };
-                }
+                _ => {}
             }
+
+            header = unsafe {
+                let p = libc::CMSG_NXTHDR(&mhdr as *const _, h as *const _);
+                p.as_ref()
+            };
         }
 
-        match info {
+        match addr_dst {
             None => Err(Error::new(
                 ErrorKind::NotFound,
                 "Failed to read PKTINFO from socket",
             )),
-            Some(info) => Ok((bytes_recv as _, info)),
+            Some(addr_dst) => Ok((
+                bytes_recv as _,
+                PktInfo {
+                    if_index: if_index.unwrap_or_default(),
+                    addr_src,
+                    addr_dst,
+                },
+            )),
         }
     }
 

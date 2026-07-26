@@ -5,7 +5,7 @@
 [![docs.rs](https://img.shields.io/docsrs/socket-pktinfo)](https://docs.rs/socket-pktinfo/latest/socket-pktinfo/)
 [![Rust version: 1.71+](https://img.shields.io/badge/rust%20version-1.71+-orange)](https://blog.rust-lang.org/2023/07/13/Rust-1.71.0/)
 
-Small library to allow cross-platform handling of IP_PKTINFO and IPV6_PKTINFO with socket2 crate. Primary use case for this crate is to determine if a UDP packet was sent to a unicast, broadcast or multicast IP address. Compatible with Windows, Linux and macOS.
+Small library to allow cross-platform handling of IP_PKTINFO and IPV6_PKTINFO with socket2 crate. Primary use case for this crate is to determine if a UDP packet was sent to a unicast, broadcast or multicast IP address. Compatible with Windows, Linux, FreeBSD and macOS.
 
 ## Example
 

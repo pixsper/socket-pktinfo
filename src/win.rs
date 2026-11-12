@@ -4,7 +4,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::os::windows::io::{AsRawSocket, RawSocket};
 use std::{io, mem, ptr};
 
-use socket2::{Domain, Protocol, SockAddr, SockAddrStorage, Socket, Type};
+use socket2::{Domain, InterfaceIndexOrAddress, Protocol, SockAddr, SockAddrStorage, Socket, Type};
 use windows_sys::core::{PCSTR, PSTR};
 use windows_sys::Win32::Networking::WinSock::{
     self, CMSGHDR, IN6_PKTINFO, IN_PKTINFO, IPPROTO_IP, IPPROTO_IPV6, IPV6_PKTINFO, IP_PKTINFO,
@@ -139,6 +139,22 @@ impl PktInfoUdpSocket {
     /// Drop membership in a multicast group for IPv4.
     pub fn leave_multicast_v4(&self, addr: &Ipv4Addr, interface: &Ipv4Addr) -> io::Result<()> {
         self.socket.leave_multicast_v4(addr, interface)
+    }
+
+    pub fn join_multicast_v4_n(
+        &self,
+        addr: &Ipv4Addr,
+        interface: &InterfaceIndexOrAddress,
+    ) -> io::Result<()> {
+        self.socket.join_multicast_v4_n(addr, interface)
+    }
+
+    pub fn leave_multicast_v4_n(
+        &self,
+        addr: &Ipv4Addr,
+        interface: &InterfaceIndexOrAddress,
+    ) -> io::Result<()> {
+        self.socket.leave_multicast_v4_n(addr, interface)
     }
 
     pub fn set_multicast_if_v4(&self, interface: &Ipv4Addr) -> io::Result<()> {

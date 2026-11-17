@@ -43,7 +43,7 @@ mod unix;
 #[cfg(not(windows))]
 pub use unix::*;
 
-///
+/// Source, destination and receiving interface of a UDP datagram.
 #[derive(Debug, Clone)]
 pub struct PktInfo {
     /// Interface index

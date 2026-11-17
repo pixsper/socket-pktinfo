@@ -5,7 +5,9 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::{io, mem, ptr};
 
-use socket2::{Domain, InterfaceIndexOrAddress, Protocol, SockAddr, SockAddrStorage, Socket, Type};
+#[cfg(not(any(target_os = "netbsd", target_os = "openbsd")))]
+use socket2::InterfaceIndexOrAddress;
+use socket2::{Domain, Protocol, SockAddr, SockAddrStorage, Socket, Type};
 
 use crate::PktInfo;
 
@@ -56,7 +58,7 @@ impl PktInfoUdpSocket {
         let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
 
         match domain {
-            #[cfg(target_os = "freebsd")]
+            #[cfg(any(target_os = "freebsd", target_os = "openbsd", target_os = "dragonfly"))]
             Domain::IPV4 => unsafe {
                 setsockopt(
                     socket.as_raw_fd(),
@@ -66,7 +68,11 @@ impl PktInfoUdpSocket {
                 )?;
                 setsockopt(socket.as_raw_fd(), libc::IPPROTO_IP, libc::IP_RECVIF, 1)?;
             },
-            #[cfg(not(target_os = "freebsd"))]
+            #[cfg(not(any(
+                target_os = "freebsd",
+                target_os = "openbsd",
+                target_os = "dragonfly"
+            )))]
             Domain::IPV4 => unsafe {
                 setsockopt(socket.as_raw_fd(), libc::IPPROTO_IP, libc::IP_PKTINFO, 1)?;
             },
@@ -104,6 +110,7 @@ impl PktInfoUdpSocket {
         self.socket.leave_multicast_v4(addr, interface)
     }
 
+    #[cfg(not(any(target_os = "netbsd", target_os = "openbsd")))]
     pub fn join_multicast_v4_n(
         &self,
         addr: &Ipv4Addr,
@@ -112,6 +119,7 @@ impl PktInfoUdpSocket {
         self.socket.join_multicast_v4_n(addr, interface)
     }
 
+    #[cfg(not(any(target_os = "netbsd", target_os = "openbsd")))]
     pub fn leave_multicast_v4_n(
         &self,
         addr: &Ipv4Addr,
@@ -174,13 +182,17 @@ impl PktInfoUdpSocket {
         let mut msg_iov = IoSliceMut::new(buf);
         let mut cmsg = {
             let space = if self.domain == Domain::IPV4 {
-                #[cfg(target_os = "freebsd")]
+                #[cfg(any(target_os = "freebsd", target_os = "openbsd", target_os = "dragonfly"))]
                 unsafe {
                     libc::CMSG_SPACE(mem::size_of::<libc::in_addr>() as libc::c_uint) as usize
                         + libc::CMSG_SPACE(mem::size_of::<libc::sockaddr_dl>() as libc::c_uint)
                             as usize
                 }
-                #[cfg(not(target_os = "freebsd"))]
+                #[cfg(not(any(
+                    target_os = "freebsd",
+                    target_os = "openbsd",
+                    target_os = "dragonfly"
+                )))]
                 unsafe {
                     libc::CMSG_SPACE(mem::size_of::<libc::in_pktinfo>() as libc::c_uint) as usize
                 }
@@ -237,7 +249,11 @@ impl PktInfoUdpSocket {
             let p = unsafe { libc::CMSG_DATA(h) };
 
             match (h.cmsg_level, h.cmsg_type) {
-                #[cfg(not(target_os = "freebsd"))]
+                #[cfg(not(any(
+                    target_os = "freebsd",
+                    target_os = "openbsd",
+                    target_os = "dragonfly"
+                )))]
                 (libc::IPPROTO_IP, libc::IP_PKTINFO) => {
                     let pktinfo = unsafe { ptr::read_unaligned(p as *const libc::in_pktinfo) };
                     if_index = Some(pktinfo.ipi_ifindex as u64);
@@ -245,12 +261,12 @@ impl PktInfoUdpSocket {
                         pktinfo.ipi_addr.s_addr,
                     ))));
                 }
-                #[cfg(target_os = "freebsd")]
+                #[cfg(any(target_os = "freebsd", target_os = "openbsd", target_os = "dragonfly"))]
                 (libc::IPPROTO_IP, libc::IP_RECVDSTADDR) => {
                     let in_addr = unsafe { ptr::read_unaligned(p as *const libc::in_addr) };
                     addr_dst = Some(IpAddr::V4(Ipv4Addr::from(in_addr.s_addr.to_ne_bytes())));
                 }
-                #[cfg(target_os = "freebsd")]
+                #[cfg(any(target_os = "freebsd", target_os = "openbsd", target_os = "dragonfly"))]
                 (libc::IPPROTO_IP, libc::IP_RECVIF) => {
                     let sockaddr = unsafe { ptr::read_unaligned(p as *const libc::sockaddr_dl) };
                     if_index = Some(sockaddr.sdl_index as u64);
